@@ -1,4 +1,3 @@
-
 ---
 title: AI Resume Screener
 emoji: 🤖
@@ -8,7 +7,8 @@ sdk: streamlit
 sdk_version: "1.32.0"
 app_file: streamlit_app.py
 pinned: false
----<<<<<<< HEAD
+---
+
 # 🤖 AI Resume Screening & Job Matching Platform
 
 > An intelligent resume screening system that uses **Sentence-BERT** semantic matching and **spaCy NLP** to automatically rank candidates against job descriptions — built as a solo project during placement preparation.
@@ -40,28 +40,3 @@ Recruiters manually screen hundreds of resumes for every job opening — a proce
 
 ---
 
-## 🖥️ Demo Screenshot
-
-![Demo](screenshot.png.png)
-=======
----
-title: Ai Resume Screener
-emoji: 🚀
-colorFrom: red
-colorTo: red
-sdk: docker
-app_port: 8501
-tags:
-- streamlit
-pinned: false
-short_description: Streamlit template space
-license: mit
----
-
-# Welcome to Streamlit!
-
-Edit `/src/streamlit_app.py` to customize this app to your heart's desire. :heart:
-
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
->>>>>>> baa380c4596bcf1673fa015c45fac78b4b6fca89
