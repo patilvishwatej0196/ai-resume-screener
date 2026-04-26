@@ -1,19 +1,20 @@
-# jd_extractor.py
-# This file extracts required skills and keywords from job descriptions
-# We use spaCy NLP + our skills database to find what a job needs
-# Later this is compared against resume skills to calculate match score
-
-# Import spaCy for NLP processing
 import spacy
-
-# Import os for reading files from folders
 import os
-
-# Import re for pattern matching
 import re
+import subprocess
+import sys
 
-# Load the English language model
-nlp = spacy.load("en_core_web_sm")
+def load_spacy_model():
+    try:
+        return spacy.load("en_core_web_sm")
+    except OSError:
+        print("Downloading spaCy model...")
+        subprocess.run([
+            sys.executable, "-m", "spacy", "download", "en_core_web_sm"
+        ], check=True)
+        return spacy.load("en_core_web_sm")
+
+nlp = load_spacy_model()
 
 # -------------------------------------------------------
 # SKILLS DATABASE - same as parser.py

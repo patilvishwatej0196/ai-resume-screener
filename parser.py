@@ -1,20 +1,34 @@
-# parser.py
-# This file extracts useful information from resume text
-# It finds: candidate name, email address, and skills
-# We use spaCy for NLP and re (regex) for email detection
-
-# Import spaCy - the NLP library that understands human language
+# Import spaCy
 import spacy
 
-# Import re - Python's built-in regex library for pattern matching
+# Import re for regex pattern matching
 import re
 
-# Import os - for file path handling
+# Import os for file handling
 import os
 
-# Load the English language model we downloaded on Day 1
-# This model knows grammar, named entities, and word types
-nlp = spacy.load("en_core_web_sm")
+# Import subprocess to run terminal commands from Python
+import subprocess
+
+# Import sys to get current Python path
+import sys
+
+# Load spaCy model — auto downloads if not found
+def load_spacy_model():
+    try:
+        # Try loading normally first
+        return spacy.load("en_core_web_sm")
+    except OSError:
+        # If not found, download it automatically
+        print("Downloading spaCy model...")
+        subprocess.run([
+            sys.executable, "-m", "spacy", "download", "en_core_web_sm"
+        ], check=True)
+        # Load again after download
+        return spacy.load("en_core_web_sm")
+
+# Load the model
+nlp = load_spacy_model()
 
 # -------------------------------------------------------
 # SKILLS DATABASE
