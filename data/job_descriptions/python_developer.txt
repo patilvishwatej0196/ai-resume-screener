@@ -1,0 +1,30 @@
+Job Title: Python Developer
+Company: TechSoft Solutions Pvt Ltd
+Location: Pune, Maharashtra
+Experience Required: 0-2 years (Freshers welcome)
+
+About the Role:
+We are looking for a passionate Python Developer to join our backend team.
+You will build APIs, automate workflows, and work on data pipelines.
+
+Required Skills:
+- Python programming (core concepts, OOP, functions)
+- Flask or FastAPI for building REST APIs
+- SQL and basic database knowledge (MySQL or PostgreSQL)
+- Git and GitHub for version control
+- Basic understanding of HTML and JSON
+
+Good to Have:
+- Experience with pandas and numpy
+- Knowledge of Docker basics
+- Familiarity with cloud platforms (AWS or GCP)
+
+Responsibilities:
+- Write clean and efficient Python code
+- Build and maintain REST APIs
+- Work with databases to store and retrieve data
+- Collaborate with frontend developers
+- Write unit tests for your code
+- Participate in code reviews
+
+Qualification: B.E. / B.Tech in Computer Science, IT, or related field

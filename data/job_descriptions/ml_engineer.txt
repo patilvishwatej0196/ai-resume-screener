@@ -1,0 +1,32 @@
+Job Title: Machine Learning Engineer
+Company: AI Ventures Pvt Ltd
+Location: Hyderabad, Telangana
+Experience Required: 0-2 years (Freshers welcome)
+
+About the Role:
+We are looking for an ML Engineer to design, build, and deploy machine
+learning models that solve real business problems at scale.
+
+Required Skills:
+- Python programming with strong fundamentals
+- Machine learning libraries: scikit-learn, pandas, numpy
+- Deep learning basics: neural networks, CNNs, RNNs
+- NLP concepts: tokenization, embeddings, text classification
+- Model training, evaluation, and tuning
+- Git for version control
+
+Good to Have:
+- Experience with TensorFlow or PyTorch
+- Knowledge of Hugging Face transformers
+- Familiarity with model deployment using Flask or FastAPI
+- Understanding of MLOps concepts
+
+Responsibilities:
+- Build and train machine learning models
+- Process and clean training datasets
+- Evaluate model performance using metrics like accuracy, F1, precision
+- Deploy models as REST APIs
+- Monitor model performance in production
+- Document experiments and results clearly
+
+Qualification: B.E. / B.Tech in Computer Science, AI/ML, or related field

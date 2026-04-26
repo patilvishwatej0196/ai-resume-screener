@@ -1,0 +1,26 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+# Resume PDF files - personal data, never upload to GitHub
+data/resumes/
+*.pdf
+
+# Job descriptions with sensitive data
+# (keep this commented out - we WANT job descriptions on GitHub)
+# data/job_descriptions/
+
+# Dataset files - too large for GitHub
+*.csv
+data/Resume.csv
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Environment variables and secrets
+.env
+*.env
+*.png
+*.jpg
+*.jpeg

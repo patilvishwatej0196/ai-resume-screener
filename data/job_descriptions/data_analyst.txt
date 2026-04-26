@@ -1,0 +1,31 @@
+Job Title: Data Analyst
+Company: Insight Analytics India
+Location: Bangalore, Karnataka
+Experience Required: 0-2 years (Freshers welcome)
+
+About the Role:
+We are hiring a Data Analyst to help us turn raw business data into
+meaningful insights. You will work with sales, marketing, and product teams.
+
+Required Skills:
+- Python or R for data analysis
+- pandas and numpy for data manipulation
+- SQL for querying databases
+- Data visualization using matplotlib, seaborn, or Power BI
+- Excel and Google Sheets proficiency
+- Basic statistics and probability
+
+Good to Have:
+- Experience with Tableau or Looker
+- Knowledge of machine learning basics
+- Familiarity with Jupyter Notebook
+
+Responsibilities:
+- Collect, clean, and analyze large datasets
+- Create dashboards and visual reports
+- Identify trends and patterns in business data
+- Present findings to non-technical stakeholders
+- Automate repetitive reporting tasks using Python
+- Support data-driven decision making
+
+Qualification: B.E. / B.Tech / B.Sc in Computer Science, Statistics, or Mathematics
