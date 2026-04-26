@@ -8,8 +8,8 @@ sdk_version: "1.32.0"
 app_file: streamlit_app.py
 python_version: "3.10"
 pinned: false
-🌐 **Live Demo:** [Try it here](https://huggingface.co/spaces/vishwatej1234/ai-resume-screener)
 ---
+🌐 **Live Demo:** [Try it here](https://huggingface.co/spaces/vishwatej1234/ai-resume-screener)
 
 # 🤖 AI Resume Screening & Job Matching Platform
 
