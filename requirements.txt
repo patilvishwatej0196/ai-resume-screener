@@ -1,13 +1,7 @@
-<<<<<<< HEAD
-streamlit
-spacy
-pdfplumber
-sentence-transformers
-scikit-learn
-numpy
+streamlit==1.32.0
+spacy==3.7.4
+pdfplumber==0.10.3
+sentence-transformers==2.7.0
+scikit-learn==1.4.2
+numpy==1.26.4
 https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
-=======
-altair
-pandas
-streamlit
->>>>>>> baa380c4596bcf1673fa015c45fac78b4b6fca89
