@@ -1,4 +1,14 @@
-<<<<<<< HEAD
+
+---
+title: AI Resume Screener
+emoji: 🤖
+colorFrom: blue
+colorTo: indigo
+sdk: streamlit
+sdk_version: "1.32.0"
+app_file: streamlit_app.py
+pinned: false
+---<<<<<<< HEAD
 # 🤖 AI Resume Screening & Job Matching Platform
 
 > An intelligent resume screening system that uses **Sentence-BERT** semantic matching and **spaCy NLP** to automatically rank candidates against job descriptions — built as a solo project during placement preparation.
