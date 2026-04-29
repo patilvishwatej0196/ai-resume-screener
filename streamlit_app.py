@@ -7,7 +7,7 @@
 import streamlit as st
 
 # Import our custom modules built in Days 2-4
-from resume_reader import extract_text_from_pdf
+from resume_reader import extract_text
 from parser import parse_resume
 from jd_extractor import extract_jd_keywords
 from matcher import get_bert_score, get_combined_score
@@ -236,8 +236,8 @@ st.markdown("## 📄 Upload Resumes")
 # File uploader — accepts multiple PDF files
 # accept_multiple_files=True lets user upload many at once
 uploaded_files = st.file_uploader(
-    "Upload one or more PDF resumes",
-    type=["pdf"],                    # only PDF files
+    "Upload PDF or Word resumes",
+    type=["pdf", "docx"],                    # only PDF files
     accept_multiple_files=True,      # allow multiple uploads
     help="Upload PDF resumes to screen and rank"
 )
@@ -312,9 +312,10 @@ if uploaded_files and jd_text:
 
                 # Save uploaded file to a temporary location
                 # pdfplumber needs a real file path, not a stream
+                file_ext = os.path.splitext(uploaded_file.name)[1]
                 with tempfile.NamedTemporaryFile(
-                    delete=False,         # keep file until we delete it
-                    suffix='.pdf'         # give it .pdf extension
+                    delete=False,
+                    suffix=file_ext
                 ) as tmp_file:
 
                     # Write the uploaded file content to temp file
@@ -322,7 +323,7 @@ if uploaded_files and jd_text:
                     tmp_path = tmp_file.name  # save the temp file path
 
                 # Extract text from the PDF
-                resume_text = extract_text_from_pdf(tmp_path)
+                resume_text = extract_text(tmp_path)
 
                 # Delete the temp file after reading
                 os.unlink(tmp_path)
