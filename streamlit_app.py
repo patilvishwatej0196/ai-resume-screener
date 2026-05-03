@@ -3,6 +3,7 @@
 # Recruiters can now download ranked results as spreadsheet
 # Also added summary statistics section
 
+
 # Import streamlit — the web framework
 import streamlit as st
 
@@ -19,7 +20,8 @@ from matcher import get_bert_score, get_combined_score
 import tempfile  # for saving uploaded files temporarily
 import os        # for file path operations
 import io        # for creating in-memory file buffers
-
+# Import email sender module
+from email_sender import send_bulk_notifications
 
 # -------------------------------------------------------
 # PAGE CONFIGURATION
@@ -27,7 +29,6 @@ import io        # for creating in-memory file buffers
 
 st.set_page_config(
     page_title="AI Resume Screener",
-    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -331,6 +332,38 @@ Experience: 0-2 years"""
     - 🟡 ≥ 50% → Review
     - 🔴 < 50% → Rejected
     """)
+
+    st.markdown("---")
+    st.markdown("### 📧 Email Notifications")
+
+    # Input for sender Gmail address
+    sender_email = st.text_input(
+        "Your Gmail address",
+        placeholder="yourgmail@gmail.com",
+        help="Gmail used to send notifications"
+    )
+
+    # Input for Gmail App Password
+    sender_password = st.text_input(
+        "Gmail App Password",
+        type="password",      # hides the password
+        placeholder="16 character app password",
+        help="Get this from myaccount.google.com/apppasswords"
+    )
+
+    # Job role input for email subject line
+    job_role_input = st.text_input(
+        "Job Role (for email)",
+        placeholder="Python Developer",
+        help="Used in email subject and body"
+    )
+
+    # Toggle to enable/disable email sending
+    send_emails = st.checkbox(
+        "Send email notifications",
+        value=False,
+        help="Sends shortlist email to matched candidates"
+    )
 
     st.markdown("---")
     st.markdown("**Tech Stack:**")
@@ -653,6 +686,46 @@ if uploaded_files and jd_text:
                 )
 
             st.success(f"✅ {len(all_results)} candidates screened | {len([r for r in all_results if r['final_score'] >= threshold])} shortlisted | Ready to download!")
+            # ── EMAIL NOTIFICATIONS (Day 8) ──
+            if send_emails:
+
+                # Check all credentials are provided
+                if not sender_email or not sender_password:
+                    st.warning("⚠️ Enter your Gmail and App Password in sidebar to send emails")
+
+                elif not job_role_input:
+                    st.warning("⚠️ Enter the Job Role in sidebar for email notifications")
+
+                else:
+                    st.markdown("---")
+                    st.markdown("## 📧 Sending Email Notifications")
+
+                    # Set credentials in environment
+                    import os
+                    os.environ["SENDER_EMAIL"]    = sender_email
+                    os.environ["SENDER_PASSWORD"] = sender_password
+
+                    # Reload the module with new credentials
+                    from email_sender import send_bulk_notifications
+
+                    # Show spinner while sending
+                    with st.spinner("Sending emails to candidates..."):
+                        success_list, failed_list = send_bulk_notifications(
+                            all_results,
+                            job_role_input,
+                            threshold
+                        )
+
+                    # Show results
+                    if success_list:
+                        st.success(f"✅ {len(success_list)} emails sent successfully!")
+                        for msg in success_list:
+                            st.write(f"  ✅ {msg}")
+
+                    if failed_list:
+                        st.error(f"❌ {len(failed_list)} emails failed")
+                        for msg in failed_list:
+                            st.write(f"  ❌ {msg}")
 
 elif uploaded_files and not jd_text:
     st.warning("⚠️ Please paste a job description in the sidebar to start analysis")
