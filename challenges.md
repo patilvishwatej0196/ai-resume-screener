@@ -25,3 +25,21 @@ Day 4 Challenges:
 - BERT and keyword scores were identical in Test 3
   → because jd_keywords were not passed to rank_resumes()
   → fixed in updated app.py by passing parsed JD keywords properly
+
+  Day 6 Challenges:
+- ModuleNotFoundError: No module named 'docx'
+  → installed python-docx with pip install python-docx
+- DOCX temp file was being saved with .pdf extension
+  → fixed by detecting uploaded file extension dynamically
+  → file_ext = os.path.splitext(uploaded_file.name)[1]
+- requirements.txt had old pinned spacy version
+  → cleaned up to use unpinned versions for HF compatibility
+
+  Day 7 Challenges:
+- ModuleNotFoundError: No module named 'resume_parser'
+  → resume_parser.py was missing from project
+  → recreated the file with spaCy-free parse_resume() function
+- jd_extractor_simple.py also missing
+  → recreated with SKILLS_DB direct matching
+- pip install pandas openpyxl needed for Excel export
+  → added both to requirements.txt
