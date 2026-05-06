@@ -1,14 +1,18 @@
 # streamlit_app.py
-# Day 7 Update — Added CSV and Excel export feature
-# Recruiters can now download ranked results as spreadsheet
-# Also added summary statistics section
-
+# Day 9 Update — Added Analytics Dashboard with 4 Plotly charts
+# Charts: Score Distribution, Top Skills, Shortlist Pie, BERT vs Keyword scatter
 
 # Import streamlit — the web framework
 import streamlit as st
 
-# Import pandas — for creating DataFrames and exporting to CSV/Excel
+# Import pandas — for DataFrames and export
 import pandas as pd
+
+# Import plotly express — easy chart creation library
+import plotly.express as px
+
+# Import plotly graph objects — for advanced chart customization
+import plotly.graph_objects as go
 
 # Import our custom modules
 from resume_reader import extract_text
@@ -17,11 +21,11 @@ from jd_extractor_simple import extract_jd_keywords
 from matcher import get_bert_score, get_combined_score
 
 # Import other libraries
-import tempfile  # for saving uploaded files temporarily
-import os        # for file path operations
-import io        # for creating in-memory file buffers
-# Import email sender module
-from email_sender import send_bulk_notifications
+import tempfile   # for saving uploaded files temporarily
+import os         # for file path operations
+import io         # for in-memory file buffers
+from collections import Counter  # for counting skill frequencies
+
 
 # -------------------------------------------------------
 # PAGE CONFIGURATION
@@ -29,6 +33,7 @@ from email_sender import send_bulk_notifications
 
 st.set_page_config(
     page_title="AI Resume Screener",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -79,22 +84,13 @@ st.markdown("""
         border-radius: 12px;
         margin-bottom: 24px;
     }
-    /* Download button styling */
-    .download-section {
-        background: white;
-        padding: 20px 24px;
-        border-radius: 12px;
-        border: 2px dashed #2E74B5;
-        margin: 16px 0;
-        text-align: center;
-    }
-    /* Summary stats box */
-    .stats-box {
-        background: linear-gradient(135deg, #1F3864, #2E74B5);
+    /* Analytics section styling */
+    .analytics-header {
+        background: linear-gradient(135deg, #1a1a2e, #16213e);
         color: white;
-        padding: 20px;
+        padding: 20px 28px;
         border-radius: 12px;
-        margin: 16px 0;
+        margin: 20px 0 16px 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -115,8 +111,7 @@ def get_score_color(score):
 
 
 def get_decision(score, threshold):
-    # Returns shortlist decision based on score vs threshold
-    # threshold is set by the recruiter using the slider
+    # Returns shortlist decision and color
     if score >= threshold:
         return "✅ SHORTLISTED", "#28a745"
     elif score >= 50:
@@ -127,7 +122,6 @@ def get_decision(score, threshold):
 
 def score_to_bar(score, width=200):
     # Creates an HTML progress bar for a score
-    # Color changes based on score range
     color = "#28a745" if score >= 70 else "#ffc107" if score >= 50 else "#dc3545"
     filled = int((score / 100) * width)
     return f"""
@@ -142,121 +136,57 @@ def score_to_bar(score, width=200):
 
 
 # -------------------------------------------------------
-# NEW DAY 7 FUNCTION: Build results DataFrame
+# DAY 7 FUNCTIONS: Export features
 # -------------------------------------------------------
 
 def build_results_df(all_results, jd_text):
-    # Converts the all_results list into a pandas DataFrame
-    # This is the data structure used for CSV and Excel export
-
-    # Empty list to hold each row of data
+    # Converts results list to pandas DataFrame for export
     rows = []
-
-    # Loop through every candidate result
     for i, r in enumerate(all_results):
-
-        # Build one row dictionary per candidate
-        # Each key becomes a column in the spreadsheet
         row = {
-            # Basic ranking info
-            "Rank"              : i + 1,
-            "Candidate Name"    : r['name'],
-            "Email"             : r['email'],
-            "Resume File"       : r['file'],
-
-            # Score columns
-            "BERT Score (%)"    : r['bert_score'],
+            "Rank"             : i + 1,
+            "Candidate Name"   : r['name'],
+            "Email"            : r['email'],
+            "Resume File"      : r['file'],
+            "BERT Score (%)"   : r['bert_score'],
             "Keyword Score (%)": r['keyword_score'],
-            "Final Score (%)"   : r['final_score'],
-
-            # Decision
-            "Decision"          : r['decision'].replace("✅ ", "").replace("🟡 ", "").replace("❌ ", ""),
-
-            # Skills info
-            "Skills Detected"   : r['skills_count'],
-            "Matched Skills"    : ", ".join(r['matched']),
-            "Missing Skills"    : ", ".join(r['missing']),
+            "Final Score (%)"  : r['final_score'],
+            "Decision"         : r['decision'].replace("✅ ","").replace("🟡 ","").replace("❌ ",""),
+            "Skills Detected"  : r['skills_count'],
+            "Matched Skills"   : ", ".join(r['matched']),
+            "Missing Skills"   : ", ".join(r['missing']),
         }
-
-        # Add the row to our list
         rows.append(row)
+    return pd.DataFrame(rows)
 
-    # Convert list of dictionaries to pandas DataFrame
-    # Each dictionary becomes one row in the table
-    df = pd.DataFrame(rows)
-
-    return df
-
-
-# -------------------------------------------------------
-# NEW DAY 7 FUNCTION: Convert DataFrame to CSV bytes
-# -------------------------------------------------------
 
 def df_to_csv(df):
-    # Converts a pandas DataFrame to CSV format
-    # Returns bytes that Streamlit can use for download
+    # Converts DataFrame to CSV bytes
+    return df.to_csv(index=False).encode('utf-8')
 
-    # index=False means don't include row numbers (0,1,2...)
-    # in the CSV — cleaner output for recruiters
-    csv_bytes = df.to_csv(index=False)
-
-    # Return as encoded bytes for download
-    return csv_bytes.encode('utf-8')
-
-
-# -------------------------------------------------------
-# NEW DAY 7 FUNCTION: Convert DataFrame to Excel bytes
-# -------------------------------------------------------
 
 def df_to_excel(df):
-    # Converts a pandas DataFrame to Excel (.xlsx) format
-    # Returns bytes that Streamlit can use for download
-
-    # io.BytesIO() creates an in-memory file buffer
-    # This avoids saving to disk — everything stays in memory
+    # Converts DataFrame to Excel bytes using openpyxl
     buffer = io.BytesIO()
-
-    # ExcelWriter writes the DataFrame to the buffer
-    # engine='openpyxl' is needed for .xlsx format
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-
-        # Write DataFrame to Excel
-        # sheet_name sets the tab name in the Excel file
-        # index=False removes row numbers
         df.to_excel(writer, sheet_name='Screening Results', index=False)
+    return buffer.getvalue()
 
-    # Get the bytes from the buffer
-    excel_bytes = buffer.getvalue()
-
-    return excel_bytes
-
-
-# -------------------------------------------------------
-# NEW DAY 7 FUNCTION: Show summary statistics
-# -------------------------------------------------------
 
 def show_summary_stats(all_results, threshold):
-    # Shows a summary statistics section above the download buttons
-    # Gives recruiter a quick overview of the screening batch
-
-    # Calculate statistics
-    total      = len(all_results)
+    # Shows summary statistics metrics
+    total       = len(all_results)
     shortlisted = len([r for r in all_results if r['final_score'] >= threshold])
-    rejected   = total - shortlisted
-    avg_score  = round(sum(r['final_score'] for r in all_results) / total, 1) if total > 0 else 0
-    top_score  = max(r['final_score'] for r in all_results) if total > 0 else 0
-    best_name  = all_results[0]['name'] if all_results else "N/A"
+    rejected    = total - shortlisted
+    avg_score   = round(sum(r['final_score'] for r in all_results) / total, 1) if total > 0 else 0
+    top_score   = max(r['final_score'] for r in all_results) if total > 0 else 0
+    best_name   = all_results[0]['name'] if all_results else "N/A"
 
-    # Display as 4 metric columns
     st.markdown("### 📊 Screening Summary")
-
-    # First row — counts
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        # st.metric shows a number with a label
         st.metric("📄 Total Screened", total)
     with c2:
-        # delta shows the change — here we show shortlist %
         shortlist_pct = round((shortlisted/total)*100) if total > 0 else 0
         st.metric("✅ Shortlisted", shortlisted, f"{shortlist_pct}% of total")
     with c3:
@@ -264,7 +194,6 @@ def show_summary_stats(all_results, threshold):
     with c4:
         st.metric("⭐ Avg Score", f"{avg_score}%")
 
-    # Second row — top candidate info
     st.markdown(f"""
     <div style="background:#EBF3FB;padding:12px 20px;border-radius:10px;
                 border-left:4px solid #2E74B5;margin:8px 0;">
@@ -272,9 +201,336 @@ def show_summary_stats(all_results, threshold):
         &nbsp;|&nbsp;
         <strong>Top Score:</strong> {top_score}%
         &nbsp;|&nbsp;
-        <strong>Threshold:</strong> {threshold}% (set by you)
+        <strong>Threshold:</strong> {threshold}%
     </div>
     """, unsafe_allow_html=True)
+
+
+# -------------------------------------------------------
+# DAY 9 NEW FUNCTIONS: Analytics charts
+# -------------------------------------------------------
+
+def chart_score_distribution(all_results):
+    # CHART 1: Score Distribution Histogram
+    # Shows how scores are spread across all candidates
+    # Helps recruiter understand the quality of the applicant pool
+
+    # Extract final scores from all results
+    scores = [r['final_score'] for r in all_results]
+
+    # Create histogram using plotly express
+    # x=scores means each score becomes a bar
+    # nbins=10 means we divide scores into 10 groups (0-10, 10-20, etc)
+    fig = px.histogram(
+        x=scores,
+        nbins=10,
+        title="📊 Score Distribution — All Candidates",
+        labels={'x': 'Final Score (%)', 'y': 'Number of Candidates'},
+        color_discrete_sequence=['#2E74B5']  # blue bars
+    )
+
+    # Add a vertical line showing the shortlist threshold
+    # This helps recruiter see how many are above/below cutoff
+    fig.add_vline(
+        x=60,                          # threshold at 60%
+        line_dash="dash",              # dashed line style
+        line_color="red",             # red color
+        annotation_text="Threshold",  # label on the line
+        annotation_position="top right"
+    )
+
+    # Update layout for clean professional look
+    fig.update_layout(
+        plot_bgcolor='white',          # white chart background
+        paper_bgcolor='white',         # white outer background
+        font=dict(family="Arial"),     # Arial font throughout
+        showlegend=False,              # hide legend (not needed)
+        height=350                     # chart height in pixels
+    )
+
+    # Update bar appearance
+    fig.update_traces(
+        marker_line_color='white',    # white border between bars
+        marker_line_width=1.5         # border width
+    )
+
+    # Display the chart in Streamlit
+    # use_container_width=True makes chart fill the column width
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def chart_top_skills(all_results):
+    # CHART 2: Top Skills Bar Chart
+    # Shows which skills appear most frequently across all resumes
+    # Helps recruiter understand what skills the applicant pool has
+
+    # Collect all skills from all candidates into one list
+    all_skills = []
+    for r in all_results:
+        # r['matched'] contains skills that matched the JD
+        all_skills.extend(r['matched'])
+
+    # If no skills found, show a message
+    if not all_skills:
+        st.info("Upload more resumes to see skill frequency chart")
+        return
+
+    # Count how many times each skill appears
+    # Counter({'python': 5, 'git': 4, 'sql': 3, ...})
+    skill_counts = Counter(all_skills)
+
+    # Get top 10 most common skills
+    # most_common(10) returns [(skill, count), ...] sorted by count
+    top_skills = skill_counts.most_common(10)
+
+    # Separate skills and counts into two lists for the chart
+    skills_list = [s[0] for s in top_skills]   # ['python', 'git', ...]
+    counts_list = [s[1] for s in top_skills]   # [5, 4, ...]
+
+    # Create horizontal bar chart
+    # This is easier to read for long skill names
+    fig = px.bar(
+        x=counts_list,                          # counts on x-axis
+        y=skills_list,                          # skills on y-axis
+        orientation='h',                        # horizontal bars
+        title="🔧 Top Skills Across All Candidates",
+        labels={'x': 'Number of Candidates', 'y': 'Skill'},
+        color=counts_list,                      # color by count value
+        color_continuous_scale='Blues'          # blue color scale
+    )
+
+    # Update layout
+    fig.update_layout(
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(family="Arial"),
+        showlegend=False,
+        height=350,
+        yaxis={'categoryorder': 'total ascending'}  # sort bars by value
+    )
+
+    # Display chart
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def chart_shortlist_pie(all_results, threshold):
+    # CHART 3: Shortlist Distribution Pie Chart
+    # Shows the ratio of shortlisted vs review vs rejected
+    # Quick visual for recruiter to see overall batch quality
+
+    # Count candidates in each category
+    shortlisted   = len([r for r in all_results if r['final_score'] >= threshold])
+    review        = len([r for r in all_results if 50 <= r['final_score'] < threshold])
+    rejected      = len([r for r in all_results if r['final_score'] < 50])
+
+    # Only keep categories that have at least 1 candidate
+    labels = []
+    values = []
+
+    if shortlisted > 0:
+        labels.append('Shortlisted')
+        values.append(shortlisted)
+
+    if review > 0:
+        labels.append('Manual Review')
+        values.append(review)
+
+    if rejected > 0:
+        labels.append('Rejected')
+        values.append(rejected)
+
+    # Colors matching our app theme
+    colors = ['#28a745', '#ffc107', '#dc3545']
+
+    # Create pie chart using plotly graph objects
+    # go.Pie gives more control than px.pie
+    fig = go.Figure(data=[go.Pie(
+        labels=labels,           # category names
+        values=values,           # category counts
+        hole=0.4,                # creates a donut chart (hole in center)
+        marker_colors=colors[:len(labels)]  # apply colors
+    )])
+
+    # Update layout
+    fig.update_layout(
+        title="🎯 Shortlist Distribution",
+        font=dict(family="Arial"),
+        height=350,
+        legend=dict(
+            orientation="h",     # horizontal legend
+            yanchor="bottom",    # anchor at bottom
+            y=-0.2               # position below chart
+        )
+    )
+
+    # Update trace styling
+    fig.update_traces(
+        textposition='inside',           # show percentages inside slices
+        textinfo='percent+label',        # show both % and label
+        hovertemplate='%{label}: %{value} candidates<extra></extra>'
+    )
+
+    # Display chart
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def chart_bert_vs_keyword(all_results):
+    # CHART 4: BERT Score vs Keyword Score Scatter Plot
+    # Shows the relationship between semantic score and keyword score
+    # Each dot = one candidate — hover to see their name and scores
+
+    # Need at least 2 candidates for a meaningful scatter plot
+    if len(all_results) < 2:
+        st.info("Upload at least 2 resumes to see comparison scatter plot")
+        return
+
+    # Build lists for each axis and labels
+    bert_scores    = [r['bert_score']    for r in all_results]
+    keyword_scores = [r['keyword_score'] for r in all_results]
+    final_scores   = [r['final_score']   for r in all_results]
+    names          = [r['name']          for r in all_results]
+
+    # Create scatter plot
+    # Each candidate is one point on the chart
+    fig = px.scatter(
+        x=bert_scores,               # x-axis: BERT scores
+        y=keyword_scores,            # y-axis: keyword scores
+        color=final_scores,          # color dots by final score
+        size=final_scores,           # size dots by final score
+        hover_name=names,            # show name on hover
+        color_continuous_scale='RdYlGn',  # red-yellow-green color scale
+        title="🤖 BERT Score vs Keyword Score",
+        labels={
+            'x': 'BERT Semantic Score (%)',
+            'y': 'Keyword Match Score (%)',
+            'color': 'Final Score (%)'
+        }
+    )
+
+    # Add reference lines showing 50% mark on both axes
+    # This creates 4 quadrants on the chart
+    fig.add_hline(
+        y=50,
+        line_dash="dot",
+        line_color="gray",
+        opacity=0.5
+    )
+    fig.add_vline(
+        x=50,
+        line_dash="dot",
+        line_color="gray",
+        opacity=0.5
+    )
+
+    # Update layout
+    fig.update_layout(
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(family="Arial"),
+        height=350
+    )
+
+    # Make dots larger and more visible
+    fig.update_traces(
+        marker=dict(
+            line=dict(width=1, color='white')  # white border on dots
+        )
+    )
+
+    # Display chart
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def show_analytics_dashboard(all_results, threshold):
+    # MAIN ANALYTICS FUNCTION
+    # Displays all 4 charts in a structured layout
+    # Called after all resumes have been processed
+
+    # Analytics section header
+    st.markdown("""
+    <div class="analytics-header">
+        <h2 style="margin:0;font-size:22px;">📈 Analytics Dashboard</h2>
+        <p style="margin:6px 0 0 0;opacity:0.8;font-size:14px;">
+            Visual insights from the current screening batch
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Only show charts if we have enough data
+    if len(all_results) < 1:
+        st.info("Upload and analyze resumes to see analytics")
+        return
+
+    # Row 1: Score Distribution + Shortlist Pie
+    # These two charts side by side in 2 columns
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Chart 1: Score histogram
+        chart_score_distribution(all_results)
+
+    with col2:
+        # Chart 3: Pie chart
+        chart_shortlist_pie(all_results, threshold)
+
+    # Row 2: Top Skills + Scatter Plot
+    col3, col4 = st.columns(2)
+
+    with col3:
+        # Chart 2: Skills frequency
+        chart_top_skills(all_results)
+
+    with col4:
+        # Chart 4: BERT vs keyword scatter
+        chart_bert_vs_keyword(all_results)
+
+    # Key insights section below charts
+    st.markdown("### 💡 Key Insights")
+
+    # Calculate insights automatically
+    avg   = round(sum(r['final_score'] for r in all_results) / len(all_results), 1)
+    best  = max(all_results, key=lambda x: x['final_score'])
+    worst = min(all_results, key=lambda x: x['final_score'])
+
+    # Get most common skill across all candidates
+    all_skills = []
+    for r in all_results:
+        all_skills.extend(r['matched'])
+    top_skill = Counter(all_skills).most_common(1)[0][0] if all_skills else "N/A"
+
+    # Display insights in 3 columns
+    i1, i2, i3 = st.columns(3)
+
+    with i1:
+        st.markdown(f"""
+        <div style="background:white;padding:14px;border-radius:10px;
+                    border-left:4px solid #2E74B5;text-align:center;">
+            <p style="margin:0;font-size:13px;color:#666;">Average Score</p>
+            <p style="margin:4px 0;font-size:28px;font-weight:bold;
+                      color:#2E74B5;">{avg}%</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with i2:
+        st.markdown(f"""
+        <div style="background:white;padding:14px;border-radius:10px;
+                    border-left:4px solid #28a745;text-align:center;">
+            <p style="margin:0;font-size:13px;color:#666;">Best Candidate</p>
+            <p style="margin:4px 0;font-size:18px;font-weight:bold;
+                      color:#28a745;">{best['name']}</p>
+            <p style="margin:0;font-size:13px;color:#28a745;">{best['final_score']}%</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with i3:
+        st.markdown(f"""
+        <div style="background:white;padding:14px;border-radius:10px;
+                    border-left:4px solid #ffc107;text-align:center;">
+            <p style="margin:0;font-size:13px;color:#666;">Top Common Skill</p>
+            <p style="margin:4px 0;font-size:22px;font-weight:bold;
+                      color:#856404;">{top_skill}</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # -------------------------------------------------------
@@ -299,10 +555,9 @@ with st.sidebar:
     st.markdown("## 📋 Job Description")
     st.markdown("---")
 
-    # Job description text area
     jd_text = st.text_area(
         "Paste the Job Description here",
-        height=300,
+        height=250,
         placeholder="""Job Title: Python Developer
 Required Skills:
 - Python, Flask, FastAPI
@@ -315,14 +570,33 @@ Experience: 0-2 years"""
     st.markdown("---")
     st.markdown("### ⚙️ Settings")
 
-    # Shortlist threshold slider
     threshold = st.slider(
         "Shortlist Threshold (%)",
         min_value=30,
         max_value=90,
         value=60,
-        step=5,
-        help="Candidates above this score are shortlisted"
+        step=5
+    )
+
+    st.markdown("---")
+    st.markdown("### 📧 Email Notifications")
+
+    sender_email = st.text_input(
+        "Your Gmail address",
+        placeholder="yourgmail@gmail.com"
+    )
+    sender_password = st.text_input(
+        "Gmail App Password",
+        type="password",
+        placeholder="16 character app password"
+    )
+    job_role_input = st.text_input(
+        "Job Role (for email)",
+        placeholder="Python Developer"
+    )
+    send_emails = st.checkbox(
+        "Send email notifications",
+        value=False
     )
 
     st.markdown("---")
@@ -334,61 +608,26 @@ Experience: 0-2 years"""
     """)
 
     st.markdown("---")
-    st.markdown("### 📧 Email Notifications")
-
-    # Input for sender Gmail address
-    sender_email = st.text_input(
-        "Your Gmail address",
-        placeholder="yourgmail@gmail.com",
-        help="Gmail used to send notifications"
-    )
-
-    # Input for Gmail App Password
-    sender_password = st.text_input(
-        "Gmail App Password",
-        type="password",      # hides the password
-        placeholder="16 character app password",
-        help="Get this from myaccount.google.com/apppasswords"
-    )
-
-    # Job role input for email subject line
-    job_role_input = st.text_input(
-        "Job Role (for email)",
-        placeholder="Python Developer",
-        help="Used in email subject and body"
-    )
-
-    # Toggle to enable/disable email sending
-    send_emails = st.checkbox(
-        "Send email notifications",
-        value=False,
-        help="Sends shortlist email to matched candidates"
-    )
-
-    st.markdown("---")
     st.markdown("**Tech Stack:**")
     st.markdown("🧠 Sentence-BERT")
     st.markdown("📝 spaCy NLP")
+    st.markdown("📊 Plotly Analytics")
     st.markdown("📄 pdfplumber + python-docx")
-    st.markdown("📊 pandas export")
     st.markdown("🐍 Python 3.x")
 
 
 # -------------------------------------------------------
-# MAIN AREA — Resume Upload
+# MAIN AREA
 # -------------------------------------------------------
 
 st.markdown("## 📄 Upload Resumes")
 
-# File uploader — accepts PDF and DOCX (Day 6 update)
 uploaded_files = st.file_uploader(
     "Upload one or more PDF or Word resumes",
-    type=["pdf", "docx"],           # both formats supported
-    accept_multiple_files=True,
-    help="Upload PDF or DOCX resumes to screen and rank"
+    type=["pdf", "docx"],
+    accept_multiple_files=True
 )
 
-# Show instructions if nothing uploaded
 if not uploaded_files:
     st.info("👆 Upload resumes above and paste a job description in the sidebar")
 
@@ -397,13 +636,14 @@ if not uploaded_files:
         1. **Paste** the job description in the sidebar
         2. **Upload** one or more PDF or DOCX resumes
         3. **Click** Analyze Resumes
-        4. **See** BERT score, keyword score, final match score
+        4. **See** scores, rankings, and analytics charts
         5. **Download** results as CSV or Excel
+        6. **Email** shortlisted candidates automatically
         """)
 
 
 # -------------------------------------------------------
-# ANALYZE BUTTON + RESULTS
+# ANALYZE + RESULTS
 # -------------------------------------------------------
 
 if uploaded_files and jd_text:
@@ -422,7 +662,6 @@ if uploaded_files and jd_text:
         with st.spinner("Extracting job requirements..."):
             jd_keywords = extract_jd_keywords(jd_text)
 
-        # Show JD keywords
         st.markdown("### 🎯 Job Requirements Detected")
         if jd_keywords:
             tags_html = " ".join([
@@ -430,25 +669,22 @@ if uploaded_files and jd_text:
                 for kw in jd_keywords[:20]
             ])
             st.markdown(tags_html, unsafe_allow_html=True)
-        else:
-            st.warning("No specific skill keywords detected in JD")
 
         st.markdown("---")
         st.markdown("## 👥 Candidate Results")
 
-        # List to store all results
+        # Store all results
         all_results = []
 
-        # Process each uploaded resume
+        # Process each resume
         for uploaded_file in uploaded_files:
 
             with st.spinner(f"Analyzing {uploaded_file.name}..."):
 
-                # Get file extension to preserve it in temp file
-                # This is the Day 6 fix for DOCX support
+                # Get file extension for temp file
                 file_ext = os.path.splitext(uploaded_file.name)[1]
 
-                # Save to temp file with correct extension
+                # Save to temp file
                 with tempfile.NamedTemporaryFile(
                     delete=False,
                     suffix=file_ext
@@ -456,38 +692,23 @@ if uploaded_files and jd_text:
                     tmp_file.write(uploaded_file.read())
                     tmp_path = tmp_file.name
 
-                # Extract text using auto-detect function (Day 6)
+                # Extract text using auto-detect
                 resume_text = extract_text(tmp_path)
-
-                # Delete temp file after reading
                 os.unlink(tmp_path)
 
                 if resume_text:
 
-                    # Parse resume for name email skills
-                    resume_data = parse_resume(resume_text)
-
-                    # Get BERT semantic score
-                    bert_score = get_bert_score(resume_text, jd_text)
-
-                    # Calculate keyword score
+                    resume_data   = parse_resume(resume_text)
+                    bert_score    = get_bert_score(resume_text, jd_text)
                     resume_skills = set(resume_data['skills'])
                     jd_set        = set(jd_keywords)
                     matched       = resume_skills & jd_set
                     missing       = jd_set - resume_skills
 
-                    if len(jd_set) > 0:
-                        keyword_score = round(len(matched) / len(jd_set) * 100, 1)
-                    else:
-                        keyword_score = 0.0
-
-                    # Calculate combined final score
-                    final_score = get_combined_score(bert_score, keyword_score)
-
-                    # Get shortlist decision using threshold
+                    keyword_score = round(len(matched)/len(jd_set)*100, 1) if jd_set else 0.0
+                    final_score   = get_combined_score(bert_score, keyword_score)
                     decision, decision_color = get_decision(final_score, threshold)
 
-                    # Store result for leaderboard and export
                     all_results.append({
                         "file"         : uploaded_file.name,
                         "name"         : resume_data['name'],
@@ -505,7 +726,7 @@ if uploaded_files and jd_text:
                     st.error(f"Could not extract text from {uploaded_file.name}")
                     continue
 
-            # Display candidate result card
+            # Display candidate card
             with st.container():
 
                 st.markdown(f"""
@@ -519,7 +740,6 @@ if uploaded_files and jd_text:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # 4 score cards
                 c1, c2, c3, c4 = st.columns(4)
 
                 with c1:
@@ -528,8 +748,7 @@ if uploaded_files and jd_text:
                     <div class="score-card">
                         <p class="score-number {color}">{bert_score}%</p>
                         <p class="score-label">🤖 BERT Score<br>Semantic Match</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>""", unsafe_allow_html=True)
 
                 with c2:
                     color = get_score_color(keyword_score)
@@ -537,8 +756,7 @@ if uploaded_files and jd_text:
                     <div class="score-card">
                         <p class="score-number {color}">{keyword_score}%</p>
                         <p class="score-label">🔑 Keyword Score<br>{len(matched)}/{len(jd_set)} skills</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>""", unsafe_allow_html=True)
 
                 with c3:
                     color = get_score_color(final_score)
@@ -546,8 +764,7 @@ if uploaded_files and jd_text:
                     <div class="score-card">
                         <p class="score-number {color}">{final_score}%</p>
                         <p class="score-label">⭐ Final Score<br>60% BERT + 40% KW</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>""", unsafe_allow_html=True)
 
                 with c4:
                     st.markdown(f"""
@@ -557,19 +774,14 @@ if uploaded_files and jd_text:
                             {decision}
                         </p>
                         <p class="score-label">Threshold: {threshold}%</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>""", unsafe_allow_html=True)
 
-                # Skills columns
                 sk1, sk2 = st.columns(2)
 
                 with sk1:
                     st.markdown(f"**✅ Matched Skills ({len(matched)})**")
                     if matched:
-                        tags = " ".join([
-                            f'<span class="skill-tag skill-matched">{s}</span>'
-                            for s in sorted(matched)
-                        ])
+                        tags = " ".join([f'<span class="skill-tag skill-matched">{s}</span>' for s in sorted(matched)])
                         st.markdown(tags, unsafe_allow_html=True)
                     else:
                         st.markdown("*No skills matched*")
@@ -577,10 +789,7 @@ if uploaded_files and jd_text:
                 with sk2:
                     st.markdown(f"**❌ Missing Skills ({len(missing)})**")
                     if missing:
-                        tags = " ".join([
-                            f'<span class="skill-tag skill-missing">{s}</span>'
-                            for s in sorted(missing)
-                        ])
+                        tags = " ".join([f'<span class="skill-tag skill-missing">{s}</span>' for s in sorted(missing)])
                         st.markdown(tags, unsafe_allow_html=True)
                     else:
                         st.markdown("*No skills missing!*")
@@ -590,142 +799,107 @@ if uploaded_files and jd_text:
         # ── LEADERBOARD ──
         if all_results:
 
-            # Sort by final score
             all_results.sort(key=lambda x: x['final_score'], reverse=True)
 
             st.markdown("## 🏆 Candidate Leaderboard")
-            st.markdown("*Ranked by Final Score (60% BERT + 40% Keyword)*")
 
             medals = ["🥇", "🥈", "🥉"]
 
             for i, r in enumerate(all_results):
-
-                medal      = medals[i] if i < 3 else f"#{i+1}"
-                is_short   = r['final_score'] >= threshold
-                bg_color   = "#f0fff4" if is_short else "#fff5f5"
-                border     = "#28a745" if is_short else "#dc3545"
-                bar_html   = score_to_bar(r['final_score'])
+                medal    = medals[i] if i < 3 else f"#{i+1}"
+                is_short = r['final_score'] >= threshold
+                bg       = "#f0fff4" if is_short else "#fff5f5"
+                border   = "#28a745" if is_short else "#dc3545"
+                bar_html = score_to_bar(r['final_score'])
 
                 st.markdown(f"""
-                <div style="background:{bg_color};padding:14px 20px;
-                            border-radius:10px;border-left:5px solid {border};
-                            margin:8px 0;">
+                <div style="background:{bg};padding:14px 20px;
+                            border-radius:10px;border-left:5px solid {border};margin:8px 0;">
                     <div style="display:flex;align-items:center;gap:16px;">
                         <span style="font-size:24px;">{medal}</span>
                         <div style="flex:1;">
                             <strong style="font-size:16px;">{r['name']}</strong>
-                            <span style="color:#666;font-size:13px;
-                                         margin-left:12px;">{r['file']}</span>
+                            <span style="color:#666;font-size:13px;margin-left:12px;">{r['file']}</span>
                             <br>{bar_html}
                             <span style="font-size:12px;color:#666;margin-left:16px;">
-                                BERT: {r['bert_score']}% |
-                                Keywords: {r['keyword_score']}% |
-                                Skills: {r['skills_count']}
+                                BERT: {r['bert_score']}% | Keywords: {r['keyword_score']}%
                             </span>
                         </div>
-                        <div style="text-align:right;">
+                        <div>
                             <span style="font-size:13px;font-weight:bold;
                                          color:{'#28a745' if is_short else '#dc3545'};">
                                 {r['decision']}
                             </span>
                         </div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
+                </div>""", unsafe_allow_html=True)
 
-            # ── SUMMARY STATISTICS (NEW DAY 7) ──
+            # Summary stats
             st.markdown("---")
             show_summary_stats(all_results, threshold)
 
-            # ── DOWNLOAD SECTION (NEW DAY 7) ──
+            # ── ANALYTICS DASHBOARD (NEW DAY 9) ──
+            st.markdown("---")
+            show_analytics_dashboard(all_results, threshold)
+
+            # ── DOWNLOAD SECTION ──
             st.markdown("---")
             st.markdown("## 📥 Download Results")
-            st.markdown("Export the complete ranked leaderboard to share with your team")
 
-            # Build the DataFrame from results
             df = build_results_df(all_results, jd_text)
 
-            # Show preview of the DataFrame
             with st.expander("👀 Preview Export Data"):
-                # Display first 5 rows of the table
                 st.dataframe(
-                    df[["Rank","Candidate Name","Email",
-                        "Final Score (%)","Decision"]],
+                    df[["Rank","Candidate Name","Email","Final Score (%)","Decision"]],
                     use_container_width=True
                 )
 
-            # Download buttons in 2 columns
             dl1, dl2 = st.columns(2)
 
             with dl1:
-                # CSV download button
-                csv_data = df_to_csv(df)
-
-                # st.download_button creates a download button
-                # When clicked, browser downloads the file
                 st.download_button(
                     label="📊 Download as CSV",
-                    data=csv_data,           # file content as bytes
-                    file_name="screening_results.csv",  # download filename
-                    mime="text/csv",         # file type
-                    use_container_width=True,
-                    help="Opens in Excel, Google Sheets, or any spreadsheet app"
+                    data=df_to_csv(df),
+                    file_name="screening_results.csv",
+                    mime="text/csv",
+                    use_container_width=True
                 )
 
             with dl2:
-                # Excel download button
-                excel_data = df_to_excel(df)
-
                 st.download_button(
                     label="📗 Download as Excel",
-                    data=excel_data,         # file content as bytes
-                    file_name="screening_results.xlsx", # download filename
+                    data=df_to_excel(df),
+                    file_name="screening_results.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
-                    help="Opens directly in Microsoft Excel"
+                    use_container_width=True
                 )
 
-            st.success(f"✅ {len(all_results)} candidates screened | {len([r for r in all_results if r['final_score'] >= threshold])} shortlisted | Ready to download!")
-            # ── EMAIL NOTIFICATIONS (Day 8) ──
+            st.success(f"✅ {len(all_results)} candidates screened | {len([r for r in all_results if r['final_score'] >= threshold])} shortlisted")
+
+            # ── EMAIL NOTIFICATIONS ──
             if send_emails:
-
-                # Check all credentials are provided
                 if not sender_email or not sender_password:
-                    st.warning("⚠️ Enter your Gmail and App Password in sidebar to send emails")
-
+                    st.warning("⚠️ Enter Gmail and App Password in sidebar")
                 elif not job_role_input:
-                    st.warning("⚠️ Enter the Job Role in sidebar for email notifications")
-
+                    st.warning("⚠️ Enter Job Role in sidebar for email notifications")
                 else:
                     st.markdown("---")
                     st.markdown("## 📧 Sending Email Notifications")
-
-                    # Set credentials in environment
-                    import os
                     os.environ["SENDER_EMAIL"]    = sender_email
                     os.environ["SENDER_PASSWORD"] = sender_password
-
-                    # Reload the module with new credentials
                     from email_sender import send_bulk_notifications
-
-                    # Show spinner while sending
-                    with st.spinner("Sending emails to candidates..."):
+                    with st.spinner("Sending emails..."):
                         success_list, failed_list = send_bulk_notifications(
-                            all_results,
-                            job_role_input,
-                            threshold
+                            all_results, job_role_input, threshold
                         )
-
-                    # Show results
                     if success_list:
-                        st.success(f"✅ {len(success_list)} emails sent successfully!")
+                        st.success(f"✅ {len(success_list)} emails sent!")
                         for msg in success_list:
                             st.write(f"  ✅ {msg}")
-
                     if failed_list:
                         st.error(f"❌ {len(failed_list)} emails failed")
                         for msg in failed_list:
                             st.write(f"  ❌ {msg}")
 
 elif uploaded_files and not jd_text:
-    st.warning("⚠️ Please paste a job description in the sidebar to start analysis")
+    st.warning("⚠️ Please paste a job description in the sidebar")
