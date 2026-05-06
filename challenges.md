@@ -43,3 +43,13 @@ Day 4 Challenges:
   → recreated with SKILLS_DB direct matching
 - pip install pandas openpyxl needed for Excel export
   → added both to requirements.txt
+
+Day 8 Challenges:
+- Gmail App Password setup required 2-step verification first
+  → enabled 2FA then created App Password at myaccount.google.com/apppasswords
+- SMTPAuthenticationError when using real Gmail password
+  → fixed by using 16-character App Password instead
+- Candidate email not found when resume had no email
+  → added validation: skip if email == "Not found" or "@" not in email
+- .env credentials not loading in Streamlit
+  → fixed by setting os.environ directly from sidebar inputs
