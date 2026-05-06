@@ -15,12 +15,11 @@ from email.mime.text import MIMEText            # for text and HTML content
 import os
 
 # Import load_dotenv to read credentials from .env file
-from dotenv import load_dotenv
-
-# Load the .env file — reads SENDER_EMAIL and SENDER_PASSWORD
-# into environment variables so Python can access them
-load_dotenv()
-
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not available — credentials loaded from environment directly
 
 # -------------------------------------------------------
 # EMAIL CREDENTIALS
